@@ -41,6 +41,7 @@ class SelfCompressingMLP(nn.Module):
             indices.append(layer.get_keep_and_cut_indices())
         return indices
 
+    @torch.no_grad()
     def prune_MLP(self, optimizer, keep_and_cut_indices: List):
         linear_layers = self.linear_layers
         for l, (keep_indices, cut_indices) in enumerate(keep_and_cut_indices[:-1]):

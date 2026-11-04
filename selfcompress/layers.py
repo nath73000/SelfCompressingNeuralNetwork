@@ -42,6 +42,7 @@ class SelfCompressingLinear(nn.Module):
         keep_mask    = ~bits_at_zero
         return (keep_mask.nonzero(as_tuple=True)[0], cut_mask.nonzero(as_tuple=True)[0])
 
+    @torch.no_grad()
     def prune_output(self, keep_indices: torch.Tensor, optimizer):
         self.output_size = len(keep_indices)
         for param in self.parameters():
@@ -49,6 +50,7 @@ class SelfCompressingLinear(nn.Module):
             param.grad = None
             optimizer.cut_off_parameter(id(param), keep_indices, dim=0)
 
+    @torch.no_grad()
     def prune_input(self, keep_indices: torch.Tensor, optimizer):
         # prune only the input of the weight
         self.input_size  = len(keep_indices)

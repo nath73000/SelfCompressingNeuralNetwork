@@ -32,8 +32,9 @@ def load_run():
     return config, rows
 
 
-def percent_of_float32(row, config):
-    return 100 * row["num_bits"] / (32 * config["initial_num_param"])
+def percent_of_float32(row):
+    """The whole model (weights on whole bits, biases, bit-widths, exponents) against the same model in float32"""
+    return row["percent_float32_size"]
 
 
 def style_axis(ax, theme, title):
@@ -78,10 +79,10 @@ def plot(config, rows, theme_name):
 
     # --- Model size ---
     ax = axes[1]
-    ax.plot(epochs, [percent_of_float32(r, config) for r in rows], color=series[0], linewidth=2)
-    end_label(ax, last, percent_of_float32(final, config), f"{percent_of_float32(final, config):.1f}%", series[0], theme)
+    ax.plot(epochs, [percent_of_float32(r) for r in rows], color=series[0], linewidth=2)
+    end_label(ax, last, percent_of_float32(final), f"{percent_of_float32(final):.1f}%", series[0], theme)
     ax.set_ylim(bottom=0)
-    style_axis(ax, theme, "Weights size (% of float32)")
+    style_axis(ax, theme, "Model size (% of float32)")
 
     # --- Neurons per hidden layer ---
     ax = axes[2]
@@ -109,14 +110,14 @@ def plot(config, rows, theme_name):
 
 def print_table(config, rows):
     final       = rows[-1]
-    float32_kb  = 32 * config["initial_num_param"] / 8 / 1024
-    size_kb     = final["num_bits"] / 8 / 1024
-    compression = 32 * config["initial_num_param"] / final["num_bits"]
+    float32_kb  = config["float32_size_bits"] / 8 / 1024
+    size_kb     = final["model_size_bits"] / 8 / 1024
+    compression = config["float32_size_bits"] / final["model_size_bits"]
     num_hidden_layers = len(config["hidden_shape"]) - 1
     kept  = ", ".join(f'{config["hidden_shape"][i]} → {final[f"neurones_layer_{i}"]:.0f}' for i in range(num_hidden_layers))
     model = "MLP 784-" + "-".join(str(h) for h in config["hidden_shape"])
 
-    print("| Dataset | Model | Test accuracy | Weights size | Compression | Avg. bits / kept weight | Hidden neurons kept |")
+    print("| Dataset | Model | Test accuracy | Model size | Compression | Avg. bits / kept weight | Hidden neurons kept |")
     print("|---|---|---|---|---|---|---|")
     print(f'| MNIST | {model} | {final["accuracy"]:.2f}% | {size_kb:.1f} KB (float32: {float32_kb:.0f} KB) '
           f'| ×{compression:.1f} | {final["bits_per_weight"]:.2f} | {kept} |')

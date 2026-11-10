@@ -15,5 +15,6 @@
     "gamma": 0.02,
     "seed": 13,
     "initial_num_param": 118016,
-    "initial_tot_num_bits": 3776512.0
+    "initial_tot_num_bits": 3776512.0,
+    "float32_size_bits": 3785024
 }

@@ -11,6 +11,7 @@ from pathlib import Path
 
 from selfcompress import SelfCompressingMLP
 from selfcompress import DynamicAdamW
+from selfcompress import model_size_bits, float32_size_bits
 
 RESULTS_DIR = Path(__file__).resolve().parent.parent / "results"
 
@@ -64,7 +65,9 @@ def main():
     )
 
 
+    initial_num_param    = model.get_num_param()
     initial_tot_num_bits = model.count_tot_num_bits()
+    float32_bits         = float32_size_bits(model)     # weights + biases in float32: the reference for the model size
 
     # --- Save the config next to the metrics (used by plot_mnist.py) ---
     RESULTS_DIR.mkdir(exist_ok=True)
@@ -74,7 +77,8 @@ def main():
         "lr_weight": lr_weight, "lr_quantization": lr_quantization,
         "lr_decay_epoch": lr_decay_epoch, "pruning_after_epoch": pruning_after_epoch,
         "gamma": gamma, "seed": seed,
-        "initial_num_param": model.get_num_param(), "initial_tot_num_bits": initial_tot_num_bits,
+        "initial_num_param": initial_num_param, "initial_tot_num_bits": initial_tot_num_bits,
+        "float32_size_bits": float32_bits,
     }
     with open(RESULTS_DIR / "mnist_config.json", "w") as f:
         json.dump(config, f, indent=4)
@@ -94,8 +98,8 @@ def main():
             for x, y in train_set:
                 x, y = x.to(device), y.to(device)
 
-                num_param = model.get_num_param()
-                norm_num_bits  = model.get_tot_num_bits() / num_param
+                # Divided by the initial number of weights: gamma keeps the same strength when the network shrinks
+                norm_num_bits  = model.get_tot_num_bits() / initial_num_param
                 compression_loss = gamma * norm_num_bits
 
                 classification_loss = F.cross_entropy(model(x.reshape(x.shape[0], -1)), y)
@@ -139,6 +143,9 @@ def main():
 
         num_bits     = model.count_tot_num_bits()
         num_neurones = model.count_num_neurones_by_layer()
+        # Everything needed to store the model: weights on whole bits + biases, bit-widths and exponents
+        model_size           = model_size_bits(model)["total_bits"]
+        percent_float32_size = 100 * model_size / float32_bits
 
         if device == "mps":
             torch.mps.synchronize()
@@ -149,15 +156,17 @@ def main():
             **train_metrics,
             "test_loss": test_loss,
             "accuracy": accuracy,
-            "num_bits": num_bits,
+            "num_bits": num_bits,                                               # weights only, continuous bit-widths: what the loss sees
             "bits_per_weight": num_bits / model.get_num_param(),
             "percent_initial_bits": 100 * num_bits / initial_tot_num_bits,
+            "model_size_bits": model_size,
+            "percent_float32_size": percent_float32_size,
             **{f"neurones_layer_{i}": n for i, n in enumerate(num_neurones)},   # one column per layer
             "lr_weight":       optimizer.lr_weight,
             "time_per_epoch":  epoch_time,
         })
 
-        print(f'Epoch {epoch:4d} | accuracy {accuracy:6.2f}% | num bits {num_bits:9_.0f} | {100 * num_bits / initial_tot_num_bits:6.2f}% of initial bits | {epoch_time:6.2f}s / epoch | {model.count_num_neurones_by_layer()}')
+        print(f'Epoch {epoch:4d} | accuracy {accuracy:6.2f}% | num bits {num_bits:9_.0f} | model size {percent_float32_size:6.2f}% of float32 | {epoch_time:6.2f}s / epoch | {num_neurones}')
         save_metrics(metrics, RESULTS_DIR / "mnist_metrics.csv")
 
 
